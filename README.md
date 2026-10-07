@@ -99,3 +99,31 @@ Choose `burst`, `clockwise`, `counterclockwise`, `spiral-clockwise` or `spiral-c
 Dependency-free ES module. Run `npm run check` with Node.js 20+. Tests cover anchored edge/corner placement, collision boundaries, three modes, service forwarding, unsafe links and configuration bounds. Browser validation is also required for animation, focus and backdrop behavior.
 
 MIT license. Uses Home Assistant's native `ha-icon` component. Orbit lines, dots and connectors are drawn in JavaScript on a high-DPI canvas from the exact button coordinates. No decorative raster or external assets are used; installation requires a single resource.
+
+## Menu position and alarm PIN (v0.1.5)
+
+`menu_position.preset`: `trigger` (default), `center`, `top-left`, `top-right`, `bottom-left`, `bottom-right`, or `custom`. Corner presets use 25/75 percent of the viewport. Custom `x`/`y` are percentages (0–100). The trigger keeps its layout position; satellites fly from it to the chosen orbit. Automatic circle/fan/arc fitting still applies. Forced positions that cannot fit report an explicit error.
+
+```yaml
+menu_position:
+  preset: custom
+  x: 60
+  y: 45
+```
+
+Alarm keypad:
+```yaml
+type: custom:orbit-menu-card
+name: Снять охрану
+icon: mdi:shield-lock-outline
+mode: pin
+entity: alarm_control_panel.your_alarm
+menu_position:
+  preset: center
+pin:
+  length: 6
+```
+
+PIN mode provides digits 0–9, erase and submit; physical keyboard digits, Backspace and Enter also work. The center field displays stars and length must be an integer from 4 to 8. PIN mode defaults to a centered orbit; when the original trigger coincides with the field, the separate close control appears in the top-right corner. The card layout never moves.
+
+The correct PIN is never configured in frontend YAML. Home Assistant's alarm integration must enforce the code server-side. The card sends it only as `code` to `alarm_control_panel.alarm_disarm` for the configured entity. It clears the transient input on submit/close and waits for a real `disarmed` state before successful closure; a ten-second timeout reports no confirmation. This is a numeric keypad, not a frontend authentication gate. Do not configure a code-less alarm if PIN protection is required. No PIN is logged, persisted or emitted as a DOM event.

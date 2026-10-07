@@ -1,5 +1,5 @@
 // Orbit Menu Card — standalone HACS frontend resource, MIT.
-export const VERSION = '0.1.4';
+export const VERSION = '0.1.5';
 const number = (v, fallback, min, max) => {
   const n = v === undefined ? fallback : Number(v);
   if (!Number.isFinite(n) || n < min || n > max) throw new Error(`Value must be between ${min} and ${max}`);
@@ -8,8 +8,11 @@ const number = (v, fallback, min, max) => {
 export function normalizeConfig(raw) {
   const mode = raw.mode || 'menu';
   const layout = raw.layout || 'auto';
-  if (!['select', 'menu', 'menu-open'].includes(mode)) throw new Error('mode: select, menu or menu-open');
+  if (!['select', 'menu', 'menu-open', 'pin'].includes(mode)) throw new Error('mode: select, menu, menu-open or pin');
   if (!['auto', 'circle', 'fan', 'arc'].includes(layout)) throw new Error('layout: auto, circle, fan or arc');
+  if(mode==='pin'){if(!/^alarm_control_panel\.[a-z0-9_]+$/.test(raw.entity||''))throw new Error('PIN requires alarm_control_panel entity');raw={...raw,items:[...Array.from({length:10},(_,i)=>({id:String(i),value:String(i),name:String(i),icon:'mdi:numeric-'+i})),{id:'erase',name:'Стереть',icon:'mdi:backspace-outline'},{id:'submit',name:'Снять охрану',icon:'mdi:shield-check-outline'}],show_labels:false};}
+  const position=raw.menu_position?.preset||(mode==='pin'?'center':'trigger');if(!['trigger','center','top-left','top-right','bottom-left','bottom-right','custom'].includes(position))throw new Error('Invalid menu position');
+  const pinLength=number(raw.pin?.length,4,4,8);if(!Number.isInteger(pinLength))throw new Error('PIN length must be an integer');
   if (!Array.isArray(raw.items) || raw.items.length < 1 || raw.items.length > 12) throw new Error('Provide 1–12 items');
   if (raw.entity && mode === 'select' && !/^(input_select|select)\./.test(raw.entity)) throw new Error('Select entity must be input_select.* or select.*');
   const items = raw.items.map((item, i) => ({...item, id:String(item.id ?? item.value ?? i), value:String(item.value ?? item.name ?? i), name:String(item.name ?? item.value ?? `Item ${i + 1}`), icon:item.icon || 'mdi:circle-outline'}));
@@ -21,9 +24,18 @@ export function normalizeConfig(raw) {
   return {...raw, mode, layout, items, name:raw.name || 'Меню', icon:raw.icon || 'mdi:dots-grid',
     radius:number(raw.radius,160,90,480), button_size:number(raw.button_size,72,40,120), item_size:number(raw.item_size,60,40,100),
     show_labels:raw.show_labels !== false,
+    menu_position:{preset:position,x:number(raw.menu_position?.x,50,0,100),y:number(raw.menu_position?.y,50,0,100)},pin:{length:pinLength},
     backdrop:{opacity:number(raw.backdrop?.opacity,.45,0,1),blur:number(raw.backdrop?.blur,8,0,24)},
     animation:{open:raw.animation?.open||'clockwise',close:raw.animation?.close||'reverse',duration:number(raw.animation?.duration,260,0,1000),stagger:number(raw.animation?.stagger,24,0,120)}};
 }
+
+export function menuAnchor(position,trigger,width,height){
+  const preset=position.preset;if(preset==='trigger')return trigger;
+  const x=preset==='custom'?position.x/100:preset.includes('left')?.25:preset.includes('right')?.75:.5;
+  const y=preset==='custom'?position.y/100:preset.startsWith('top')?.25:preset.startsWith('bottom')?.75:.5;
+  return {x:x*width,y:y*height};
+}
+export function pinEdit(value,key,length){if(key==='erase')return value.slice(0,-1);if(/^\d$/.test(key)&&value.length<length)return value+key;return value;}
 export function radialLayout({x,y,width,height,count,radius=160,itemSize=60,buttonSize=72,labels=true,layout='auto'}) {
   const margin=12, labelWidth=labels?128:itemSize, boxWidth=Math.max(itemSize,labelWidth), boxHeight=itemSize+(labels?36:0);
   const toward=Math.atan2(height/2-y,width/2-x)*180/Math.PI;
@@ -79,7 +91,7 @@ const dispatch=(node,name,detail)=>node.dispatchEvent(new CustomEvent(name,{deta
 const Base=globalThis.HTMLElement||class {};
 const sharedCss=`*{box-sizing:border-box}button{font:inherit;cursor:pointer;color:#dceef5;background:#092b38;border:2px solid #48c7ef;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}button:hover{background:#15485a}button:focus-visible{outline:3px solid #dceef5;outline-offset:4px}button:disabled{cursor:wait;opacity:.6}ha-icon{--mdc-icon-size:30px;color:#dceef5;pointer-events:none}button.selected{background:#48c7ef;color:#062734}button.selected ha-icon{color:#062734}`;
 const cardCss=sharedCss+`:host{display:block;font-family:var(--primary-font-family,Roboto,sans-serif)}.card{width:260px;max-width:100%;display:flex;align-items:center;gap:14px;padding:12px;background:transparent;min-height:96px}.trigger{width:var(--size);height:var(--size)}.name{flex:1;min-width:0;overflow-wrap:anywhere;color:var(--primary-text-color,#dceef5);font-size:18px}.error{font-size:14px;color:#ffbd44;max-width:38ch}.hidden{visibility:hidden}`;
-const overlayCss=sharedCss+`:host{position:fixed;inset:0;font-family:var(--primary-font-family,Roboto,sans-serif)}dialog{position:fixed;inset:0;margin:0;padding:0;border:0;width:100vw;height:100vh;max-width:none;max-height:none;background:transparent;color:#dceef5;overflow:hidden;touch-action:none}dialog::backdrop{background:rgba(0,0,0,var(--dim));backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur))}.anchor,.item{position:absolute;transform:translate(-50%,-50%)}.anchor{width:var(--size);height:var(--size);z-index:3}.item{width:var(--item-size);height:var(--item-size);z-index:2;will-change:transform,opacity}.label{position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);width:128px;text-align:center;color:#dceef5;font-size:17px;line-height:1.25;pointer-events:none;overflow-wrap:anywhere;max-height:42px;overflow:hidden}.orbit{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.9;transition:opacity var(--duration) ease}.status{position:absolute;left:24px;bottom:24px;color:#ffbd44;background:#062734;padding:12px 18px;border-radius:12px;max-width:min(600px,90vw);font-size:16px}.enter .item{transform:translate(-50%,-50%) translate(var(--from-x),var(--from-y)) scale(.22);opacity:0}.enter .orbit,.leaving .orbit{opacity:0}@media(prefers-reduced-motion:reduce){.item,.orbit{transition:none!important}}`;
+const overlayCss=sharedCss+`.pin-field{position:absolute;transform:translate(-50%,-50%);width:220px;box-sizing:border-box;padding:14px 8px;background:#062734;color:#dceef5;border:1px solid #48c7ef;border-radius:12px;text-align:center;font:24px monospace;letter-spacing:8px;z-index:4}.pin-field::placeholder{font:16px sans-serif;letter-spacing:0}:host{position:fixed;inset:0;font-family:var(--primary-font-family,Roboto,sans-serif)}dialog{position:fixed;inset:0;margin:0;padding:0;border:0;width:100vw;height:100vh;max-width:none;max-height:none;background:transparent;color:#dceef5;overflow:hidden;touch-action:none}dialog::backdrop{background:rgba(0,0,0,var(--dim));backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur))}.anchor,.item{position:absolute;transform:translate(-50%,-50%)}.anchor{width:var(--size);height:var(--size);z-index:3}.item{width:var(--item-size);height:var(--item-size);z-index:2;will-change:transform,opacity}.label{position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);width:128px;text-align:center;color:#dceef5;font-size:17px;line-height:1.25;pointer-events:none;overflow-wrap:anywhere;max-height:42px;overflow:hidden}.orbit{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.9;transition:opacity var(--duration) ease}.status{position:absolute;left:24px;bottom:24px;color:#ffbd44;background:#062734;padding:12px 18px;border-radius:12px;max-width:min(600px,90vw);font-size:16px}.enter .item{transform:translate(-50%,-50%) translate(var(--from-x),var(--from-y)) scale(.22);opacity:0}.enter .orbit,.leaving .orbit{opacity:0}@media(prefers-reduced-motion:reduce){.item,.orbit{transition:none!important}}`;
 class OrbitOverlay extends Base {
   constructor(){super();this.attachShadow({mode:'open'});}
   open(owner) {
@@ -90,6 +102,7 @@ class OrbitOverlay extends Base {
     this.dialog.style.setProperty('--size',`${c.button_size}px`);this.dialog.style.setProperty('--item-size',`${c.item_size}px`);this.dialog.style.setProperty('--duration',`${c.animation.duration}ms`);
     this.group=element('div','items');if(c.mode==='select'){this.group.setAttribute('role','radiogroup');this.group.setAttribute('aria-label',c.name);}this.dialog.append(this.group);this.anchor=element('button','anchor');this.anchor.type='button';this.anchor.setAttribute('aria-label','Закрыть меню');this.anchor.append(icon('mdi:close'));
     this.anchor.addEventListener('click',()=>this.close());this.dialog.append(this.anchor);
+    if(c.mode==='pin'){this.code='';this.pinField=element('input','pin-field');this.pinField.type='text';this.pinField.readOnly=true;this.pinField.autocomplete='off';this.pinField.setAttribute('aria-label','PIN, '+c.pin.length+' цифр');this.pinField.placeholder='Введите PIN';this.dialog.append(this.pinField);}
     this.dialog.addEventListener('click',e=>{if(e.target===this.dialog)this.close();});
     this.dialog.addEventListener('cancel',e=>{e.preventDefault();this.close();});
     this.dialog.addEventListener('wheel',e=>e.preventDefault(),{passive:false});
@@ -103,18 +116,19 @@ class OrbitOverlay extends Base {
   position() {
     this.animations?.forEach(a=>a.cancel());this.animations=[];
     const owner=this.owner,c=owner.config,rect=owner.trigger.getBoundingClientRect();
-    const x=rect.x+rect.width/2,y=rect.y+rect.height/2;
-    this.geometry=radialLayout({x,y,width:window.innerWidth,height:window.innerHeight,count:c.items.length,radius:c.radius,itemSize:c.item_size,buttonSize:c.button_size,labels:c.show_labels,layout:c.layout});
-    this.anchor.style.left=`${x}px`;this.anchor.style.top=`${y}px`;
+    this.origin={x:rect.x+rect.width/2,y:rect.y+rect.height/2};const {x,y}=menuAnchor(c.menu_position,this.origin,window.innerWidth,window.innerHeight);
+    this.geometry=radialLayout({x,y,width:window.innerWidth,height:window.innerHeight,count:c.items.length,radius:c.radius,itemSize:c.item_size,buttonSize:c.mode==='pin'?240:c.button_size,labels:c.show_labels,layout:c.layout});
+    this.anchor.style.left=`${this.origin.x}px`;this.anchor.style.top=`${this.origin.y}px`;
+    if(this.pinField){this.pinField.style.left=`${x}px`;this.pinField.style.top=`${y}px`;if(Math.hypot(x-this.origin.x,y-this.origin.y)<150){this.anchor.style.left=`${window.innerWidth-60}px`;this.anchor.style.top='60px';}}
     const focused=this.shadowRoot.activeElement?.dataset?.item;
     this.dialog.querySelectorAll('.item,.orbit').forEach(n=>n.remove());
     this.drawDecoration();
     this.buttons=c.items.map((item,i)=>{
-      const p=this.geometry.points[i],b=element('button','item');b.type='button';b.disabled=owner.pending;b.dataset.item=item.id;b.setAttribute('aria-label',item.name);b.style.left=`${p.x}px`;b.style.top=`${p.y}px`;b.style.setProperty('--from-x',`${x-p.x}px`);b.style.setProperty('--from-y',`${y-p.y}px`);b.style.setProperty('--delay',`${i*c.animation.stagger}ms`);b.append(icon(item.icon));
+      const p=this.geometry.points[i],b=element('button','item');b.type='button';b.disabled=owner.pending;b.dataset.item=item.id;b.setAttribute('aria-label',item.name);b.style.left=`${p.x}px`;b.style.top=`${p.y}px`;b.style.setProperty('--from-x',`${this.origin.x-p.x}px`);b.style.setProperty('--from-y',`${this.origin.y-p.y}px`);b.style.setProperty('--delay',`${i*c.animation.stagger}ms`);b.append(icon(item.icon));
       if(c.mode==='select'){b.setAttribute('role','radio');b.setAttribute('aria-checked',String(owner.currentValue()===item.value));}
       if(owner.currentValue()===item.value&&c.mode==='select')b.classList.add('selected');
       if(c.show_labels)b.append(element('span','label',item.name));
-      b.addEventListener('click',()=>owner.choose(item,this));this.group.append(b);return b;
+      b.addEventListener('click',()=>c.mode==='pin'?this.pinKey(item.id):owner.choose(item,this));this.group.append(b);return b;
     });
     if(focused)this.buttons.find(b=>b.dataset.item===focused)?.focus();
   }
@@ -125,7 +139,7 @@ class OrbitOverlay extends Base {
     const preset=resolveFlight(opening?c.animation.open:c.animation.close,c.animation.open),backward=preset.includes('counterclockwise');
     this.buttons.forEach((b,i)=>{if(typeof b.animate!=='function')return;
       const target=this.geometry.points[i],point=opening?target:positions[i];
-      const frames=flightFrames(point,this.geometry.anchor,{opening,spiral:preset.startsWith('spiral-'),direction:backward?-1:1,basePoint:target,startScale:point.scale||1,startOpacity:point.opacity??1,angularBounds:this.geometry.kind==='circle'?undefined:{start:this.geometry.points[0].angle*Math.PI/180,end:this.geometry.points.at(-1).angle*Math.PI/180}});
+      const frames=flightFrames(point,this.origin,{opening,spiral:preset.startsWith('spiral-'),direction:backward?-1:1,basePoint:target,startScale:point.scale||1,startOpacity:point.opacity??1,angularBounds:this.geometry.kind==='circle'||c.menu_position.preset!=='trigger'?undefined:{start:this.geometry.points[0].angle*Math.PI/180,end:this.geometry.points.at(-1).angle*Math.PI/180}});
       const order=backward?this.buttons.length-1-i:i,delay=preset==='burst'?0:order*c.animation.stagger;
       const a=b.animate(frames,{duration:c.animation.duration,delay,easing:opening?'cubic-bezier(.18,.8,.25,1)':'ease-in',fill:'both'});this.animations.push(a);
     });
@@ -139,11 +153,13 @@ class OrbitOverlay extends Base {
     ctx.fillStyle='#48c7ef';for(const dot of d.spokeDots){ctx.beginPath();ctx.arc(dot.x,dot.y,1.7,0,Math.PI*2);ctx.fill();}
     for(const dot of d.orbitDots){ctx.beginPath();ctx.arc(dot.x,dot.y,3.2,0,Math.PI*2);ctx.fill();}
   }
-  onKey(e){if(!['ArrowRight','ArrowLeft','ArrowUp','ArrowDown','Home','End'].includes(e.key))return;e.preventDefault();const index=this.buttons.indexOf(this.shadowRoot.activeElement);let next=index;if(e.key==='Home')next=0;else if(e.key==='End')next=this.buttons.length-1;else {const forward=['ArrowRight','ArrowDown'].includes(e.key);next=index<0?(forward?0:this.buttons.length-1):(index+(forward?1:-1)+this.buttons.length)%this.buttons.length;}this.buttons[next].focus();}
+  pinKey(key){if(this.owner.pending)return;if(key==='submit'){this.owner.submitPin(this);return;}this.code=pinEdit(this.code,key,this.owner.config.pin.length);this.pinField.value='*'.repeat(this.code.length);this.pinField.setAttribute('aria-label',`PIN: введено ${this.code.length} из ${this.owner.config.pin.length}`);}
+  onKey(e){if(this.owner.config.mode==='pin'&&(/^\d$/.test(e.key)||['Backspace','Delete','Enter'].includes(e.key))){e.preventDefault();this.pinKey(e.key==='Enter'?'submit':['Backspace','Delete'].includes(e.key)?'erase':e.key);return;}
+if(!['ArrowRight','ArrowLeft','ArrowUp','ArrowDown','Home','End'].includes(e.key))return;e.preventDefault();const index=this.buttons.indexOf(this.shadowRoot.activeElement);let next=index;if(e.key==='Home')next=0;else if(e.key==='End')next=this.buttons.length-1;else {const forward=['ArrowRight','ArrowDown'].includes(e.key);next=index<0?(forward?0:this.buttons.length-1):(index+(forward?1:-1)+this.buttons.length)%this.buttons.length;}this.buttons[next].focus();}
   showError(message){let node=this.dialog.querySelector('.status');if(!node){node=element('div','status');node.setAttribute('role','alert');this.dialog.append(node);}node.textContent=message;}
   busy(flag){this.buttons?.forEach(b=>b.disabled=flag);}
   async close(immediate=false){if(this.closing)return;this.closing=true;const flight=immediate?Promise.resolve():this.play(false);this.dialog?.classList.add('leaving');if(!immediate)await flight;this.animations?.forEach(a=>a.cancel());this.dialog?.close();this.cleanup();const owner=this.owner;const active=owner.overlay===this;this.remove();if(active){owner.overlay=null;owner.trigger.classList.remove('hidden');owner.trigger.setAttribute('aria-expanded','false');if(owner.isConnected)owner.trigger.focus();}}
-  cleanup(){this.animations?.forEach(a=>a.cancel());window.removeEventListener('resize',this.resize);window.visualViewport?.removeEventListener('resize',this.resize);}
+  cleanup(){if(this.owner?.config.mode==='pin'){this.owner.pending=false;this.owner.update();}clearTimeout(this.pinTimer);this.code='';if(this.pinField)this.pinField.value='';this.animations?.forEach(a=>a.cancel());window.removeEventListener('resize',this.resize);window.visualViewport?.removeEventListener('resize',this.resize);}
   disconnectedCallback(){this.cleanup();if(this.owner?.overlay===this&&this.owner?.trigger){this.owner.trigger.classList.remove('hidden');this.owner.trigger.setAttribute('aria-expanded','false');}if(this.owner?.overlay===this)this.owner.overlay=null;}
 }
 export class OrbitMenuCard extends Base {
@@ -151,13 +167,21 @@ export class OrbitMenuCard extends Base {
   static getConfigElement(){return document.createElement('orbit-menu-card-editor');}
   static getStubConfig(){return {type:'custom:orbit-menu-card',mode:'menu',items:[{name:'Главная',icon:'mdi:home-outline',tap_action:{action:'navigate',navigation_path:'/lovelace'}}]};}
   setConfig(raw){this.overlay?.close(true);this.config=normalizeConfig(raw);this.render();}
-  set hass(h){this._hass=h;this.update();}
+  set hass(h){this._hass=h;this.update();if(this.overlay?.awaitingDisarm&&h.states[this.config.entity]?.state==='disarmed'){this.overlay.awaitingDisarm=false;this.overlay.close();}}
   connectedCallback(){if(this.config)this.render();}
   disconnectedCallback(){this.overlay?.close(true);}
   currentValue(){return this.config?.entity?this._hass?.states[this.config.entity]?.state:this.selected??this.config?.selected??null;}
   render(){if(!this.config)return;this.shadowRoot.replaceChildren(element('style','',cardCss));const card=element('div','card');card.style.setProperty('--size',`${this.config.button_size}px`);this.trigger=element('button','trigger');this.trigger.type='button';this.trigger.setAttribute('aria-haspopup','dialog');this.trigger.setAttribute('aria-expanded','false');this.trigger.addEventListener('click',()=>this.open());this.label=element('span','name');this.error=element('div','error');this.error.setAttribute('role','alert');card.append(this.trigger,this.label,this.error);this.shadowRoot.append(card);this.update();}
   update(){if(!this.trigger||!this.config)return;const item=this.config.mode==='select'?this.config.items.find(i=>i.value===this.currentValue()):null;this.trigger.replaceChildren(icon(item?.icon||this.config.icon));this.trigger.setAttribute('aria-label',item?`${this.config.name}: ${item.name}`:this.config.name);this.label.textContent=item?.name||this.config.name;this.trigger.classList.toggle('selected',!!item);this.trigger.disabled=this.pending;}
   open(){if(this.overlay||this.pending)return;this.error.textContent='';const portal=document.createElement('orbit-menu-overlay');this.overlay=portal;document.body.append(portal);try{portal.open(this);}catch(e){portal.cleanup();portal.remove();this.overlay=null;this.trigger.classList.remove('hidden');this.error.textContent=e.message;}}
+  async submitPin(overlay){
+    if(this.pending)return;if(overlay.code.length!==this.config.pin.length){overlay.showError(`Введите ${this.config.pin.length} цифр`);return;}
+    const entity=this._hass?.states[this.config.entity];if(!entity||['unavailable','unknown'].includes(entity.state)){overlay.showError('Сигнализация недоступна');return;}
+    this.pending=true;overlay.busy(true);const code=overlay.code;overlay.code='';overlay.pinField.value='';
+    try{await this._hass.callService('alarm_control_panel','alarm_disarm',{entity_id:this.config.entity,code});if(!overlay.isConnected)return;if(this._hass.states[this.config.entity]?.state==='disarmed'){overlay.close();}else{overlay.awaitingDisarm=true;overlay.showError('Ожидаю снятия охраны…');overlay.pinTimer=setTimeout(()=>{overlay.awaitingDisarm=false;if(overlay.isConnected){overlay.showError('Снятие охраны не подтверждено. Проверьте PIN и состояние сигнализации.');overlay.busy(false);}this.pending=false;this.update();},10000);}}
+    catch(e){if(overlay.isConnected)overlay.showError('Не удалось снять охрану. Проверьте PIN и состояние сигнализации.');}
+    finally{if(!overlay.awaitingDisarm){this.pending=false;this.update();if(overlay.isConnected)overlay.busy(false);}}
+  }
   async choose(item,overlay){if(this.pending)return;this.pending=true;overlay.dialog?.querySelector('.status')?.remove();overlay.busy(true);const closes=this.config.mode!=='menu-open';if(closes)await overlay.close();try{
     if(this.config.mode==='select'){
       if(this.config.entity){const entity=this._hass?.states[this.config.entity];if(!entity||['unknown','unavailable'].includes(entity.state))throw new Error('Селект сейчас недоступен');if(!entity.attributes?.options?.includes(item.value))throw new Error('Значение отсутствует в вариантах сущности');await this._hass.callService(this.config.entity.split('.')[0],'select_option',{entity_id:this.config.entity,option:item.value});}
@@ -187,9 +211,9 @@ class OrbitMenuEditor extends Base {
   setConfig(config){this.config=structuredClone(config);this.render();}
   set hass(h){this._hass=h;}
   render(){if(!this.config)return;this.shadowRoot.replaceChildren(element('style','',`:host{display:block}label{display:flex;flex-direction:column;gap:8px;margin:16px 0;color:var(--primary-text-color);font:inherit}input,select,textarea{font:inherit;padding:10px;color:var(--primary-text-color);background:var(--card-background-color);border:1px solid var(--divider-color);border-radius:8px}textarea{min-height:220px;font-family:monospace}.hint{color:var(--secondary-text-color);font-size:14px}.error{color:var(--error-color,#ffbd44)}`));
-    const controls=[['name','Название','text'],['icon','Иконка основной кнопки','text'],['mode','Поведение','select',['select','menu','menu-open']],['layout','Раскладка','select',['auto','circle','fan','arc']],['entity','Сущность селекта (необязательно)','text'],['radius','Радиус (px)','number'],['button_size','Размер основной кнопки (px)','number'],['item_size','Размер пунктов (px)','number'],['backdrop.opacity','Затемнение (0–1)','number'],['backdrop.blur','Размытие фона (px)','number'],['animation.open','Анимация раскрытия','select',['burst','clockwise','counterclockwise','spiral-clockwise','spiral-counterclockwise']],['animation.close','Анимация сворачивания','select',['reverse','burst','clockwise','counterclockwise','spiral-clockwise','spiral-counterclockwise']],['animation.duration','Анимация (ms)','number'],['animation.stagger','Задержка между пунктами (ms)','number']];
-    const defaults=normalizeConfig(this.config);const names={burst:'Одновременно',clockwise:'По часовой стрелке',counterclockwise:'Против часовой стрелки','spiral-clockwise':'Спираль по часовой','spiral-counterclockwise':'Спираль против часовой',reverse:'Обратно раскрытию',select:'Селект',menu:'Меню с закрытием','menu-open':'Меню без закрытия',auto:'Авто',circle:'Круг',fan:'Веер',arc:'Дуга'};
-    for(const [path,name,type,options] of controls){const label=element('label','',name);const input=element(type==='select'?'select':'input');if(type!=='select')input.type=type;if(options)for(const value of options){const o=element('option','',names[value]);o.value=value;input.append(o);}const get=(object)=>path.split('.').reduce((a,b)=>a?.[b],object);input.value=get(this.config)??get(defaults)??'';if(type==='number')input.step=path==='backdrop.opacity'?'.05':'1';input.addEventListener('change',()=>{const next=structuredClone(this.config);const keys=path.split('.');let target=next;for(const k of keys.slice(0,-1))target=target[k]??={};target[keys.at(-1)]=type==='number'?Number(input.value):input.value;if(path==='entity'&&!input.value)delete next.entity;this.emit(next);});label.append(input);this.shadowRoot.append(label);}
+    const controls=[['name','Название','text'],['icon','Иконка основной кнопки','text'],['mode','Поведение','select',['select','menu','menu-open','pin']],['layout','Раскладка','select',['auto','circle','fan','arc']],['entity','Сущность селекта / сигнализации','text'],['menu_position.preset','Положение меню','select',['trigger','center','top-left','top-right','bottom-left','bottom-right','custom']],['menu_position.x','Положение X (% экрана)','number'],['menu_position.y','Положение Y (% экрана)','number'],['pin.length','Длина PIN (4–8)','number'],['radius','Радиус (px)','number'],['button_size','Размер основной кнопки (px)','number'],['item_size','Размер пунктов (px)','number'],['backdrop.opacity','Затемнение (0–1)','number'],['backdrop.blur','Размытие фона (px)','number'],['animation.open','Анимация раскрытия','select',['burst','clockwise','counterclockwise','spiral-clockwise','spiral-counterclockwise']],['animation.close','Анимация сворачивания','select',['reverse','burst','clockwise','counterclockwise','spiral-clockwise','spiral-counterclockwise']],['animation.duration','Анимация (ms)','number'],['animation.stagger','Задержка между пунктами (ms)','number']];
+    const defaults=normalizeConfig(this.config);const names={burst:'Одновременно',clockwise:'По часовой стрелке',counterclockwise:'Против часовой стрелки','spiral-clockwise':'Спираль по часовой','spiral-counterclockwise':'Спираль против часовой',reverse:'Обратно раскрытию',pin:'PIN сигнализации',trigger:'У кнопки',center:'Центр',custom:'Координаты', 'top-left':'Сверху слева','top-right':'Сверху справа','bottom-left':'Снизу слева','bottom-right':'Снизу справа',select:'Селект',menu:'Меню с закрытием','menu-open':'Меню без закрытия',auto:'Авто',circle:'Круг',fan:'Веер',arc:'Дуга'};
+    for(const [path,name,type,options] of controls){const label=element('label','',name);const input=element(type==='select'?'select':'input');if(type!=='select')input.type=type;if(options)for(const value of options){const o=element('option','',names[value]||value);o.value=value;input.append(o);}const get=(object)=>path.split('.').reduce((a,b)=>a?.[b],object);input.value=get(this.config)??get(defaults)??'';if(type==='number')input.step=path==='backdrop.opacity'?'.05':'1';input.addEventListener('change',()=>{const next=structuredClone(this.config);const keys=path.split('.');let target=next;for(const k of keys.slice(0,-1))target=target[k]??={};target[keys.at(-1)]=type==='number'?Number(input.value):input.value;if(path==='entity'&&!input.value)delete next.entity;this.emit(next);});label.append(input);this.shadowRoot.append(label);}
     const labels=element('label','','Показывать подписи');const check=element('input');check.type='checkbox';check.checked=this.config.show_labels!==false;check.addEventListener('change',()=>this.emit({...this.config,show_labels:check.checked}));labels.append(check);this.shadowRoot.append(labels);
     const label=element('label','','Пункты и действия (JSON)');const textarea=element('textarea');textarea.value=JSON.stringify(this.config.items,null,2);textarea.addEventListener('change',()=>{try{this.emit({...this.config,items:JSON.parse(textarea.value)});}catch(e){this.error.textContent=e.message;}});label.append(textarea);this.shadowRoot.append(label,element('div','hint','select — локальный выбор или input_select/select. menu — действие и закрытие. menu-open — действие без закрытия.'));
     this.error=element('div','error');this.error.setAttribute('role','alert');this.shadowRoot.append(this.error);
