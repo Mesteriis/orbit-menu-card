@@ -127,3 +127,9 @@ pin:
 PIN mode provides digits 0–9, erase and submit; physical keyboard digits, Backspace and Enter also work. The center field displays stars and length must be an integer from 4 to 8. PIN mode defaults to a centered orbit; the close button is hidden. Click the backdrop or press Escape to close. PIN mode defaults to a larger 260px radius, configurable through `radius`. The card layout never moves.
 
 The correct PIN is never configured in frontend YAML. Home Assistant's alarm integration must enforce the code server-side. The card sends it only as `code` to `alarm_control_panel.alarm_disarm` for the configured entity. It clears the transient input on submit/close and waits for a real `disarmed` state before successful closure; a ten-second timeout reports no confirmation. This is a numeric keypad, not a frontend authentication gate. Do not configure a code-less alarm if PIN protection is required. No PIN is logged, persisted or emitted as a DOM event.
+
+### PIN feedback and state icons (v0.1.7)
+
+PIN shows one square cell per digit. `pin.auto_submit` defaults to true: full input submits once, pending input is locked. `pin.sound` defaults to true: short synthesized success/error tones after a user gesture (browser audio policy may suppress them). Confirmed disarmed turns the orbit green and pulses cells before closing; rejected action/timeout turns it red, shakes cells, then clears them for retry. Reduced motion disables shake/pulse. No PIN is logged or emitted.
+
+`pin.icons.locked`, `pin.icons.unlocked`, `pin.icons.unavailable` override the trigger icons. Defaults: shield-lock-outline, shield-off-outline, shield-alert-outline. Trigger tracks the authoritative alarm state.
