@@ -1,5 +1,5 @@
 // Orbit Menu Card — standalone HACS frontend resource, MIT.
-export const VERSION = '0.1.3';
+export const VERSION = '0.1.4';
 const number = (v, fallback, min, max) => {
   const n = v === undefined ? fallback : Number(v);
   if (!Number.isFinite(n) || n < min || n > max) throw new Error(`Value must be between ${min} and ${max}`);
@@ -51,26 +51,26 @@ export function safeUrl(path,external=false) {
   return url.href;
 }
 // Decoration uses exactly the same anchor, radius and angles as the buttons.
-export function orbitDecoration(geometry,{button_size=72,item_size=60}={}) {
+export function orbitDecoration(geometry,{button_size=72,item_size=60,show_labels=true}={}) {
   const {anchor,radius,points,kind}=geometry;
   const at=(angle,r)=>({x:anchor.x+Math.cos(angle)*r,y:anchor.y+Math.sin(angle)*r});
   const angles=points.map(p=>p.angle*Math.PI/180),spokeDots=[],orbitDots=[];
   const start=button_size/2+12,end=radius-item_size/2-12;
   for(const angle of angles){const count=Math.max(0,Math.floor((end-start)/9));for(let i=0;i<=count&&end>=start;i++)spokeDots.push(at(angle,count?start+i*(end-start)/count:start));}
   for(let i=0;i<angles.length-(kind==='circle'?0:1);i++){const next=i+1<angles.length?angles[i+1]:angles[0]+2*Math.PI;orbitDots.push(at((angles[i]+next)/2,radius));}
-  return {arc:{start:kind==='circle'?0:angles[0],end:kind==='circle'?Math.PI*2:angles.at(-1)},spokeDots,orbitDots};
+  return {arc:{start:kind==='circle'?0:angles[0],end:kind==='circle'?Math.PI*2:angles.at(-1)},spokeDots:show_labels?spokeDots.filter(dot=>!points.some(p=>dot.x>=p.x-67&&dot.x<=p.x+67&&dot.y>=p.y+item_size/2+5&&dot.y<=p.y+item_size/2+53)):spokeDots,orbitDots};
 }
 export function resolveFlight(name,openingName='clockwise') {
   if(name==='reverse'){const flips={burst:'burst',clockwise:'counterclockwise',counterclockwise:'clockwise','spiral-clockwise':'spiral-counterclockwise','spiral-counterclockwise':'spiral-clockwise'};return flips[openingName];}
   return name;
 }
-export function flightFrames(point,anchor,{opening=true,spiral=false,direction=1,basePoint=point,startScale=1,angularBounds}={}) {
+export function flightFrames(point,anchor,{opening=true,spiral=false,direction=1,basePoint=point,startScale=1,startOpacity=1,angularBounds}={}) {
   const dx=point.x-anchor.x,dy=point.y-anchor.y,frames=[];
   let sweep=Math.PI*2;if(angularBounds){let base=Math.atan2(dy,dx);while(base<angularBounds.start)base+=Math.PI*2;while(base>angularBounds.end)base-=Math.PI*2;const negative=opening?direction>0:direction<0;sweep=Math.max(0,negative?base-angularBounds.start:angularBounds.end-base);}
   for(let i=0;i<=32;i++){const t=i/32,r=opening?t:1-t,angle=spiral?direction*(opening?t-1:t)*sweep:0;
     const x=anchor.x+(dx*Math.cos(angle)-dy*Math.sin(angle))*r,y=anchor.y+(dx*Math.sin(angle)+dy*Math.cos(angle))*r;
     const scale=opening?.22+.78*t:startScale*(1-.78*t);
-    frames.push({transform:`translate(-50%,-50%) translate(${x-basePoint.x}px,${y-basePoint.y}px) scale(${scale})`,opacity:opening?t:1-t,offset:t});}
+    frames.push({transform:`translate(-50%,-50%) translate(${x-basePoint.x}px,${y-basePoint.y}px) scale(${scale})`,opacity:opening?t:startOpacity*(1-t),offset:t});}
   return frames;
 }
 const element=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
@@ -119,13 +119,13 @@ class OrbitOverlay extends Base {
     if(focused)this.buttons.find(b=>b.dataset.item===focused)?.focus();
   }
   play(opening){
-    const c=this.owner.config,positions=this.buttons.map(b=>{const rect=b.getBoundingClientRect();return {x:rect.x+rect.width/2,y:rect.y+rect.height/2,scale:Math.min(1,rect.width/c.item_size)};});
+    const c=this.owner.config,positions=this.buttons.map(b=>{const rect=b.getBoundingClientRect();return {x:rect.x+rect.width/2,y:rect.y+rect.height/2,scale:Math.min(1,rect.width/c.item_size),opacity:Number(getComputedStyle(b).opacity)};});
     this.animations?.forEach(a=>a.cancel());this.animations=[];
     if(matchMedia('(prefers-reduced-motion: reduce)').matches||!c.animation.duration)return Promise.resolve();
     const preset=resolveFlight(opening?c.animation.open:c.animation.close,c.animation.open),backward=preset.includes('counterclockwise');
     this.buttons.forEach((b,i)=>{if(typeof b.animate!=='function')return;
       const target=this.geometry.points[i],point=opening?target:positions[i];
-      const frames=flightFrames(point,this.geometry.anchor,{opening,spiral:preset.startsWith('spiral-'),direction:backward?-1:1,basePoint:target,startScale:point.scale||1,angularBounds:this.geometry.kind==='circle'?undefined:{start:this.geometry.points[0].angle*Math.PI/180,end:this.geometry.points.at(-1).angle*Math.PI/180}});
+      const frames=flightFrames(point,this.geometry.anchor,{opening,spiral:preset.startsWith('spiral-'),direction:backward?-1:1,basePoint:target,startScale:point.scale||1,startOpacity:point.opacity??1,angularBounds:this.geometry.kind==='circle'?undefined:{start:this.geometry.points[0].angle*Math.PI/180,end:this.geometry.points.at(-1).angle*Math.PI/180}});
       const order=backward?this.buttons.length-1-i:i,delay=preset==='burst'?0:order*c.animation.stagger;
       const a=b.animate(frames,{duration:c.animation.duration,delay,easing:opening?'cubic-bezier(.18,.8,.25,1)':'ease-in',fill:'both'});this.animations.push(a);
     });
