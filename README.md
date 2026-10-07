@@ -30,6 +30,8 @@ backdrop:
   opacity: 0.45
   blur: 8
 animation:
+  open: clockwise
+  close: reverse
   duration: 260
   stagger: 24
 items:
@@ -77,6 +79,8 @@ For repeated actions use `mode: menu-open` with the same `items` format. All thr
 | `item_size` | 60 | 40–100 px |
 | `backdrop.opacity` | 0.45 | 0–1 |
 | `backdrop.blur` | 8 | 0–24 px |
+| `animation.open` | `clockwise` | see presets below |
+| `animation.close` | `reverse` | presets or `reverse` |
 | `animation.duration` | 260 | 0–1000 ms |
 | `animation.stagger` | 24 | 0–120 ms |
 | `show_labels` | true | boolean |
@@ -86,8 +90,12 @@ Provide 1–12 items with unique `id` values (derived from `value` or position i
 
 Actions: `navigate`, `url` (HTTP/HTTPS), `more-info`, `toggle`, `perform-action`, legacy `call-service`, `fire-dom-event`, and `none`. `confirmation` is supported via a browser confirmation dialog. Local navigation requires an absolute dashboard path beginning with `/`. Service failures are surfaced without changing a bound selector optimistically. No entities, credentials, or backend integrations are created.
 
+### Flight animations
+
+Choose `burst`, `clockwise`, `counterclockwise`, `spiral-clockwise` or `spiral-counterclockwise` independently for `animation.open` and `animation.close`. Closing also accepts `reverse`, which reverses the opening direction and order. `duration` sets travel time and `stagger` sets the interval between buttons. Spirals make a full turn for a circle; near edges their sweep stays within the available fan/arc sector. Escape can interrupt an opening animation and return buttons from their current positions. Reduced-motion disables flights.
+
 ## Development
 
 Dependency-free ES module. Run `npm run check` with Node.js 20+. Tests cover anchored edge/corner placement, collision boundaries, three modes, service forwarding, unsafe links and configuration bounds. Browser validation is also required for animation, focus and backdrop behavior.
 
-MIT license. Uses Home Assistant's native `ha-icon` component. Orbit raster artwork is embedded in the module, so installation requires a single resource.
+MIT license. Uses Home Assistant's native `ha-icon` component. Orbit lines, dots and connectors are drawn in JavaScript on a high-DPI canvas from the exact button coordinates. No decorative raster or external assets are used; installation requires a single resource.
