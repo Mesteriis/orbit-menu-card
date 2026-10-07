@@ -1,5 +1,5 @@
 // Orbit Menu Card — standalone HACS frontend resource, MIT.
-export const VERSION = '0.1.5';
+export const VERSION = '0.1.6';
 const number = (v, fallback, min, max) => {
   const n = v === undefined ? fallback : Number(v);
   if (!Number.isFinite(n) || n < min || n > max) throw new Error(`Value must be between ${min} and ${max}`);
@@ -22,7 +22,7 @@ export function normalizeConfig(raw) {
   if(raw.animation?.open&&!flights.includes(raw.animation.open))throw new Error('Invalid opening animation');
   if(raw.animation?.close&&!['reverse',...flights].includes(raw.animation.close))throw new Error('Invalid closing animation');
   return {...raw, mode, layout, items, name:raw.name || 'Меню', icon:raw.icon || 'mdi:dots-grid',
-    radius:number(raw.radius,160,90,480), button_size:number(raw.button_size,72,40,120), item_size:number(raw.item_size,60,40,100),
+    radius:number(raw.radius,mode==='pin'?260:160,90,480), button_size:number(raw.button_size,72,40,120), item_size:number(raw.item_size,60,40,100),
     show_labels:raw.show_labels !== false,
     menu_position:{preset:position,x:number(raw.menu_position?.x,50,0,100),y:number(raw.menu_position?.y,50,0,100)},pin:{length:pinLength},
     backdrop:{opacity:number(raw.backdrop?.opacity,.45,0,1),blur:number(raw.backdrop?.blur,8,0,24)},
@@ -91,7 +91,7 @@ const dispatch=(node,name,detail)=>node.dispatchEvent(new CustomEvent(name,{deta
 const Base=globalThis.HTMLElement||class {};
 const sharedCss=`*{box-sizing:border-box}button{font:inherit;cursor:pointer;color:#dceef5;background:#092b38;border:2px solid #48c7ef;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}button:hover{background:#15485a}button:focus-visible{outline:3px solid #dceef5;outline-offset:4px}button:disabled{cursor:wait;opacity:.6}ha-icon{--mdc-icon-size:30px;color:#dceef5;pointer-events:none}button.selected{background:#48c7ef;color:#062734}button.selected ha-icon{color:#062734}`;
 const cardCss=sharedCss+`:host{display:block;font-family:var(--primary-font-family,Roboto,sans-serif)}.card{width:260px;max-width:100%;display:flex;align-items:center;gap:14px;padding:12px;background:transparent;min-height:96px}.trigger{width:var(--size);height:var(--size)}.name{flex:1;min-width:0;overflow-wrap:anywhere;color:var(--primary-text-color,#dceef5);font-size:18px}.error{font-size:14px;color:#ffbd44;max-width:38ch}.hidden{visibility:hidden}`;
-const overlayCss=sharedCss+`.pin-field{position:absolute;transform:translate(-50%,-50%);width:220px;box-sizing:border-box;padding:14px 8px;background:#062734;color:#dceef5;border:1px solid #48c7ef;border-radius:12px;text-align:center;font:24px monospace;letter-spacing:8px;z-index:4}.pin-field::placeholder{font:16px sans-serif;letter-spacing:0}:host{position:fixed;inset:0;font-family:var(--primary-font-family,Roboto,sans-serif)}dialog{position:fixed;inset:0;margin:0;padding:0;border:0;width:100vw;height:100vh;max-width:none;max-height:none;background:transparent;color:#dceef5;overflow:hidden;touch-action:none}dialog::backdrop{background:rgba(0,0,0,var(--dim));backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur))}.anchor,.item{position:absolute;transform:translate(-50%,-50%)}.anchor{width:var(--size);height:var(--size);z-index:3}.item{width:var(--item-size);height:var(--item-size);z-index:2;will-change:transform,opacity}.label{position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);width:128px;text-align:center;color:#dceef5;font-size:17px;line-height:1.25;pointer-events:none;overflow-wrap:anywhere;max-height:42px;overflow:hidden}.orbit{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.9;transition:opacity var(--duration) ease}.status{position:absolute;left:24px;bottom:24px;color:#ffbd44;background:#062734;padding:12px 18px;border-radius:12px;max-width:min(600px,90vw);font-size:16px}.enter .item{transform:translate(-50%,-50%) translate(var(--from-x),var(--from-y)) scale(.22);opacity:0}.enter .orbit,.leaving .orbit{opacity:0}@media(prefers-reduced-motion:reduce){.item,.orbit{transition:none!important}}`;
+const overlayCss=sharedCss+`.pin-field{position:absolute;transform:translate(-50%,-50%);width:220px;box-sizing:border-box;padding:14px 8px;background:#062734;color:#dceef5;border:1px solid #48c7ef;border-radius:12px;text-align:center;font:24px monospace;letter-spacing:8px;z-index:4}.pin-field::placeholder{font:16px sans-serif;letter-spacing:0}:host{position:fixed;inset:0;font-family:var(--primary-font-family,Roboto,sans-serif)}dialog{position:fixed;inset:0;margin:0;padding:0;border:0;width:100vw;height:100vh;max-width:none;max-height:none;background:transparent;color:#dceef5;overflow:hidden;touch-action:none}dialog::backdrop{background:rgba(0,0,0,var(--dim));backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur))}.anchor,.item{position:absolute;transform:translate(-50%,-50%)}.anchor[hidden]{display:none}.anchor{width:var(--size);height:var(--size);z-index:3}.item{width:var(--item-size);height:var(--item-size);z-index:2;will-change:transform,opacity}.label{position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);width:128px;text-align:center;color:#dceef5;font-size:17px;line-height:1.25;pointer-events:none;overflow-wrap:anywhere;max-height:42px;overflow:hidden}.orbit{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.9;transition:opacity var(--duration) ease}.status{position:absolute;left:24px;bottom:24px;color:#ffbd44;background:#062734;padding:12px 18px;border-radius:12px;max-width:min(600px,90vw);font-size:16px}.enter .item{transform:translate(-50%,-50%) translate(var(--from-x),var(--from-y)) scale(.22);opacity:0}.enter .orbit,.leaving .orbit{opacity:0}@media(prefers-reduced-motion:reduce){.item,.orbit{transition:none!important}}`;
 class OrbitOverlay extends Base {
   constructor(){super();this.attachShadow({mode:'open'});}
   open(owner) {
@@ -100,7 +100,7 @@ class OrbitOverlay extends Base {
     this.dialog.setAttribute('aria-label',c.name);this.dialog.setAttribute('aria-modal','true');
     this.dialog.style.setProperty('--dim',c.backdrop.opacity);this.dialog.style.setProperty('--blur',`${c.backdrop.blur}px`);
     this.dialog.style.setProperty('--size',`${c.button_size}px`);this.dialog.style.setProperty('--item-size',`${c.item_size}px`);this.dialog.style.setProperty('--duration',`${c.animation.duration}ms`);
-    this.group=element('div','items');if(c.mode==='select'){this.group.setAttribute('role','radiogroup');this.group.setAttribute('aria-label',c.name);}this.dialog.append(this.group);this.anchor=element('button','anchor');this.anchor.type='button';this.anchor.setAttribute('aria-label','Закрыть меню');this.anchor.append(icon('mdi:close'));
+    this.group=element('div','items');if(c.mode==='select'){this.group.setAttribute('role','radiogroup');this.group.setAttribute('aria-label',c.name);}this.dialog.append(this.group);this.anchor=element('button','anchor');this.anchor.type='button';this.anchor.hidden=c.mode==='pin';this.anchor.setAttribute('aria-label','Закрыть меню');this.anchor.append(icon('mdi:close'));
     this.anchor.addEventListener('click',()=>this.close());this.dialog.append(this.anchor);
     if(c.mode==='pin'){this.code='';this.pinField=element('input','pin-field');this.pinField.type='text';this.pinField.readOnly=true;this.pinField.autocomplete='off';this.pinField.setAttribute('aria-label','PIN, '+c.pin.length+' цифр');this.pinField.placeholder='Введите PIN';this.dialog.append(this.pinField);}
     this.dialog.addEventListener('click',e=>{if(e.target===this.dialog)this.close();});
@@ -109,7 +109,7 @@ class OrbitOverlay extends Base {
     this.dialog.addEventListener('keydown',e=>this.onKey(e));
     this.shadowRoot.append(this.dialog);this.position();this.dialog.showModal();
     owner.trigger.classList.add('hidden');owner.trigger.setAttribute('aria-expanded','true');
-    requestAnimationFrame(()=>requestAnimationFrame(()=>{if(!this.isConnected||this.closing)return;this.dialog.classList.remove('enter');this.play(true);this.anchor.focus();}));
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{if(!this.isConnected||this.closing)return;this.dialog.classList.remove('enter');this.play(true);(this.pinField||this.anchor).focus();}));
     this.resize=()=>{if(this.closing)return;try{this.position();}catch(e){this.showError(e.message);this.close();}};
     window.addEventListener('resize',this.resize);window.visualViewport?.addEventListener('resize',this.resize);
   }
@@ -119,7 +119,7 @@ class OrbitOverlay extends Base {
     this.origin={x:rect.x+rect.width/2,y:rect.y+rect.height/2};const {x,y}=menuAnchor(c.menu_position,this.origin,window.innerWidth,window.innerHeight);
     this.geometry=radialLayout({x,y,width:window.innerWidth,height:window.innerHeight,count:c.items.length,radius:c.radius,itemSize:c.item_size,buttonSize:c.mode==='pin'?240:c.button_size,labels:c.show_labels,layout:c.layout});
     this.anchor.style.left=`${this.origin.x}px`;this.anchor.style.top=`${this.origin.y}px`;
-    if(this.pinField){this.pinField.style.left=`${x}px`;this.pinField.style.top=`${y}px`;if(Math.hypot(x-this.origin.x,y-this.origin.y)<150){this.anchor.style.left=`${window.innerWidth-60}px`;this.anchor.style.top='60px';}}
+    if(this.pinField){this.pinField.style.left=`${x}px`;this.pinField.style.top=`${y}px`;}
     const focused=this.shadowRoot.activeElement?.dataset?.item;
     this.dialog.querySelectorAll('.item,.orbit').forEach(n=>n.remove());
     this.drawDecoration();

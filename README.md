@@ -124,6 +124,6 @@ pin:
   length: 6
 ```
 
-PIN mode provides digits 0–9, erase and submit; physical keyboard digits, Backspace and Enter also work. The center field displays stars and length must be an integer from 4 to 8. PIN mode defaults to a centered orbit; when the original trigger coincides with the field, the separate close control appears in the top-right corner. The card layout never moves.
+PIN mode provides digits 0–9, erase and submit; physical keyboard digits, Backspace and Enter also work. The center field displays stars and length must be an integer from 4 to 8. PIN mode defaults to a centered orbit; the close button is hidden. Click the backdrop or press Escape to close. PIN mode defaults to a larger 260px radius, configurable through `radius`. The card layout never moves.
 
 The correct PIN is never configured in frontend YAML. Home Assistant's alarm integration must enforce the code server-side. The card sends it only as `code` to `alarm_control_panel.alarm_disarm` for the configured entity. It clears the transient input on submit/close and waits for a real `disarmed` state before successful closure; a ten-second timeout reports no confirmation. This is a numeric keypad, not a frontend authentication gate. Do not configure a code-less alarm if PIN protection is required. No PIN is logged, persisted or emitted as a DOM event.
